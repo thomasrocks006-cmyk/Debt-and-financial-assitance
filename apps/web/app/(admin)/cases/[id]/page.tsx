@@ -1,10 +1,11 @@
 import Link from "next/link";
 
 interface CaseDetailPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default function CaseDetailPage({ params }: CaseDetailPageProps) {
+export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
+  const { id } = await params;
   return (
     <main className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
@@ -12,7 +13,7 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
           <Link href="/pipeline" className="text-sm text-gray-600 hover:text-gray-900">
             ← Back to Pipeline
           </Link>
-          <h1 className="font-semibold text-gray-900">Case #{params.id}</h1>
+          <h1 className="font-semibold text-gray-900">Case #{id}</h1>
           <div className="flex gap-2">
             <button className="btn-secondary text-sm">Edit</button>
             <button className="btn-primary text-sm">Take Action</button>

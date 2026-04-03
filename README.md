@@ -49,7 +49,7 @@ RecoveryOS v3 is a Codespaces-ready monorepo that provides a full-stack platform
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 14 (App Router), TypeScript, Tailwind CSS |
+| Frontend | Next.js 15 (App Router), TypeScript, Tailwind CSS |
 | Backend | Next.js API Routes (monolith) |
 | ORM | Prisma |
 | Database | PostgreSQL 16 |
