@@ -73,9 +73,12 @@ export function addMonths(date: Date, months: number): Date {
 }
 
 /**
- * Generate a simple hash for audit/immutability
+ * Generate a non-cryptographic checksum for data deduplication and change detection only.
+ * NOT suitable for security-sensitive operations such as audit trail integrity or
+ * immutability verification. For those use cases, use a cryptographic hash (e.g. SHA-256
+ * via the Web Crypto API or Node's built-in `crypto` module).
  */
-export function simpleHash(data: string): string {
+export function checksumNonCryptoOnly(data: string): string {
   let hash = 0;
   for (let i = 0; i < data.length; i++) {
     const char = data.charCodeAt(i);

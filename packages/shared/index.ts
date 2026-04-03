@@ -11,4 +11,4 @@ export * from "./src/constants/creditor-categories";
 export * from "./src/constants/hardship-flags";
 
 // Utils
-export * from "./src/utils/index";
+export { formatCurrency, toMonthly, percentage, clamp, monthsToPayoff, addMonths, checksumNonCryptoOnly } from "./src/utils/index";

@@ -1,25 +1,12 @@
 {
   "name": "RecoveryOS v3",
-  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {},
     "ghcr.io/devcontainers/features/node:1": {
       "version": "22"
-    }
-  },
-  "services": {
-    "postgres": {
-      "image": "postgres:16",
-      "environment": {
-        "POSTGRES_USER": "postgres",
-        "POSTGRES_PASSWORD": "postgres",
-        "POSTGRES_DB": "recoveryos"
-      },
-      "ports": ["5432:5432"]
-    },
-    "redis": {
-      "image": "redis:7-alpine",
-      "ports": ["6379:6379"]
     }
   },
   "forwardPorts": [3000, 5432, 6379],

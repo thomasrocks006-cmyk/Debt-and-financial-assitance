@@ -30,12 +30,15 @@ export function proRataAllocations(
 }
 
 /**
- * Priority-based allocation: pay highest priority debts first
+ * Priority-based allocation: always meet minimum payments first, then apply
+ * surplus to highest-priority debts.
  */
 export function priorityAllocations(
   totalMonthly: number,
   debts: DebtAccountInput[]
 ): DebtAllocation[] {
+  if (debts.length === 0) return [];
+
   // Sort by priority (lower number = higher priority), then by balance
   const sorted = [...debts].sort((a, b) => {
     const pa = a.priority ?? 99;
@@ -43,11 +46,16 @@ export function priorityAllocations(
     return pa - pb;
   });
 
-  let remaining = totalMonthly;
-  return sorted.map((debt) => {
-    const minPayment = debt.minimumPayment;
-    const monthlyPayment = Math.min(remaining, Math.max(minPayment, remaining / sorted.length));
-    remaining = Math.max(0, remaining - monthlyPayment);
+  // First pass: ensure all minimum payments are covered
+  const totalMinimum = sorted.reduce((s, d) => s + d.minimumPayment, 0);
+  const surplus = Math.max(0, totalMonthly - totalMinimum);
+
+  // Allocate minimums first, then distribute surplus to highest-priority debts
+  const allocations: DebtAllocation[] = sorted.map((debt, index) => {
+    const base = debt.minimumPayment;
+    // Give all surplus to the first (highest priority) debt
+    const extra = index === 0 ? surplus : 0;
+    const monthlyPayment = base + extra;
     const allocationPercent = totalMonthly > 0 ? (monthlyPayment / totalMonthly) * 100 : 0;
     const months = monthsToPayoff(debt.currentBalance, monthlyPayment, debt.interestRate ?? 0);
     return {
@@ -58,6 +66,8 @@ export function priorityAllocations(
       monthsToPayoff: isFinite(months) ? months : 999,
     };
   });
+
+  return allocations;
 }
 
 /**
