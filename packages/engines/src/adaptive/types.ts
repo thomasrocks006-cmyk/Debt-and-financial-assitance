@@ -4,6 +4,9 @@ export type TriggerType =
   | "new_debt"
   | "expense_spike"
   | "crisis_event"
+  | "creditor_response"
+  | "stage_timeout"
+  | "compliance_lapse"
   | "plan_completed"
   | "stage_eligible";
 
@@ -11,7 +14,7 @@ export interface AdaptiveTrigger {
   type: TriggerType;
   caseId: string;
   detectedAt: Date;
-  severity: "low" | "medium" | "high";
+  severity: "low" | "medium" | "high" | "critical";
   data?: Record<string, unknown>;
 }
 
@@ -24,12 +27,12 @@ export type StageTransition = {
 
 export interface AdaptiveRecommendation {
   triggerId: string;
+  triggerType?: TriggerType;
   recommendedAction: string;
-  planAdjustment?: {
-    newPaymentAmount?: number;
-    newStrategy?: string;
-    pauseDays?: number;
-  };
-  stageTransition?: StageTransition;
-  urgency: "low" | "medium" | "high";
+  planAdjustment?: Record<string, unknown>;
+  stageTransition?: string;
+  urgency: "low" | "medium" | "high" | "critical";
+  escalateToHuman?: boolean;
+  suggestedReferrals?: string[];
+  complianceBlock?: boolean;
 }
