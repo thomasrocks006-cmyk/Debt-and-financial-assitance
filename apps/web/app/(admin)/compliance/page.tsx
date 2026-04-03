@@ -25,7 +25,7 @@ function mapApiItem(item: {
   complaintProcess: boolean;
   privacyDisclosure: boolean;
   isCompliant: boolean;
-  issues: unknown[];
+  issues: Array<{ requirement: string; severity: string; remediation: string }>;
 }): ComplianceItem {
   return {
     id: item.caseId,
@@ -49,6 +49,7 @@ export default function ComplianceDashboardPage() {
 
   const fetchCompliance = useCallback(async () => {
     const res = await fetch("/api/compliance");
+    if (!res.ok) return;
     const data = await res.json();
     setComplianceItems((data.items ?? []).map(mapApiItem));
     setLastChecked(data.checkedAt ? new Date(data.checkedAt).toLocaleTimeString() : null);

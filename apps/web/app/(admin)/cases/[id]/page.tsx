@@ -12,7 +12,7 @@ interface CaseData {
   status: string;
   crisisLevel: string;
   stage: string;
-  caseManager: string;
+  caseManager: string | null;
   debts: Array<{ creditor: string; type: string; balance: number; interest: number; arrears: number }>;
   compliance: Array<{ label: string; passed: boolean }>;
   notes: Array<{ author: string; time: string; text: string }>;
@@ -178,7 +178,7 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Case Manager</span>
-                <span className="font-medium">{data.caseManager}</span>
+                <span className="font-medium">{data.caseManager ?? "Unassigned"}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Total Debt</span>

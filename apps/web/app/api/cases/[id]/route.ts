@@ -211,7 +211,7 @@ export async function GET(
     status: found.status,
     crisisLevel: found.crisisLevel,
     stage: found.stage,
-    caseManager: found.assignedTo ?? "Unassigned",
+    caseManager: found.assignedTo,
     debts: caseDebts[id] ?? [],
     compliance: caseCompliance[id] ?? [],
     notes: caseNotes[id] ?? [],
