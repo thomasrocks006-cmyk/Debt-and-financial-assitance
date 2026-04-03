@@ -12,16 +12,29 @@ export interface HardshipLetterContext {
   hardshipReason: string;
   proposedPayment?: number;
   proposedFrequency?: string;
+  proposedDurationMonths?: number;
   settlementAmount?: number;
+  settlementPercent?: number;
+  currentInterestRate?: number;
+  proposedInterestRate?: number;
+}
+
+export interface EscalationStep {
+  step: number;
+  contact: string;
+  method: "phone" | "email" | "online" | "post";
+  details: string;
 }
 
 export interface CreditorPlaybook {
   creditorId: string;
   creditorName: string;
+  category: string;
   hardshipProcess: string[];
   typicalResponseDays: number;
-  escalationPath: string[];
+  escalationPath: EscalationStep[];
   ombudsmanScheme: string;
+  knownPolicies?: string[];
   notes?: string;
 }
 
