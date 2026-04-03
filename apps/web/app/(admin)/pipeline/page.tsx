@@ -1,25 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-const initialStages = [
-  { id: "TRIAGE", label: "Triage", count: 4, color: "border-blue-200 bg-blue-50" },
-  { id: "CRISIS_STABILISATION", label: "Crisis", count: 2, color: "border-red-200 bg-red-50" },
-  { id: "ASSESSMENT", label: "Assessment", count: 7, color: "border-yellow-200 bg-yellow-50" },
-  { id: "PLAN_DESIGN", label: "Plan Design", count: 5, color: "border-purple-200 bg-purple-50" },
-  { id: "NEGOTIATING", label: "Negotiating", count: 3, color: "border-orange-200 bg-orange-50" },
-  { id: "ACTIVE_RECOVERY", label: "Active Recovery", count: 12, color: "border-green-200 bg-green-50" },
-  { id: "MONITORING", label: "Monitoring", count: 8, color: "border-teal-200 bg-teal-50" },
-];
-
-const allCases = [
-  { id: "c1", name: "Alex Demo", stage: "ASSESSMENT", crisis: "MEDIUM", debt: 17300, days: 3 },
-  { id: "c2", name: "Sarah Wilson", stage: "CRISIS_STABILISATION", crisis: "HIGH", debt: 42000, days: 1 },
-  { id: "c3", name: "James Chen", stage: "TRIAGE", crisis: "LOW", debt: 8500, days: 14 },
-  { id: "c4", name: "Maria Santos", stage: "PLAN_DESIGN", crisis: "MEDIUM", debt: 23000, days: 7 },
-  { id: "c5", name: "Michael Brown", stage: "CRISIS_STABILISATION", crisis: "HIGH", debt: 15200, days: 1 },
-  { id: "c6", name: "Emma Davis", stage: "TRIAGE", crisis: "HIGH", debt: 31000, days: 0 },
+const stageConfig = [
+  { id: "TRIAGE", label: "Triage", color: "border-blue-200 bg-blue-50" },
+  { id: "CRISIS_STABILISATION", label: "Crisis", color: "border-red-200 bg-red-50" },
+  { id: "ASSESSMENT", label: "Assessment", color: "border-yellow-200 bg-yellow-50" },
+  { id: "PLAN_DESIGN", label: "Plan Design", color: "border-purple-200 bg-purple-50" },
+  { id: "NEGOTIATING", label: "Negotiating", color: "border-orange-200 bg-orange-50" },
+  { id: "ACTIVE_RECOVERY", label: "Active Recovery", color: "border-green-200 bg-green-50" },
+  { id: "MONITORING", label: "Monitoring", color: "border-teal-200 bg-teal-50" },
 ];
 
 const crisisColors: Record<string, string> = {
@@ -32,13 +23,75 @@ const crisisColors: Record<string, string> = {
 
 type SortField = "name" | "crisis" | "debt" | "days";
 
+interface CaseRow {
+  id: string;
+  name: string;
+  stage: string;
+  crisis: string;
+  debt: number;
+  days: number;
+}
+
+interface StagesData {
+  TRIAGE: number;
+  CRISIS_STABILISATION: number;
+  ASSESSMENT: number;
+  PLAN_DESIGN: number;
+  NEGOTIATING: number;
+  ACTIVE_RECOVERY: number;
+  MONITORING: number;
+}
+
 export default function PipelinePage() {
   const [filterStage, setFilterStage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<SortField>("days");
   const [sortAsc, setSortAsc] = useState(true);
+  const [cases, setCases] = useState<CaseRow[]>([]);
+  const [stageCounts, setStageCounts] = useState<StagesData>({
+    TRIAGE: 0,
+    CRISIS_STABILISATION: 0,
+    ASSESSMENT: 0,
+    PLAN_DESIGN: 0,
+    NEGOTIATING: 0,
+    ACTIVE_RECOVERY: 0,
+    MONITORING: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredCases = allCases
+  useEffect(() => {
+    fetch("/api/cases")
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch cases");
+        return res.json();
+      })
+      .then((data) => {
+        const mapped: CaseRow[] = (data.cases ?? []).map(
+          (c: { id: string; clientName: string; status: string; crisisLevel: string; totalDebt: number; daysSinceUpdate: number }) => ({
+            id: c.id,
+            name: c.clientName,
+            stage: c.status,
+            crisis: c.crisisLevel,
+            debt: c.totalDebt,
+            days: c.daysSinceUpdate,
+          }),
+        );
+        setCases(mapped);
+        if (data.stages) {
+          setStageCounts(data.stages as StagesData);
+        }
+      })
+      .catch(() => setError("Unable to load cases. Please try again."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const stages = stageConfig.map((s) => ({
+    ...s,
+    count: stageCounts[s.id as keyof StagesData] ?? 0,
+  }));
+
+  const filteredCases = cases
     .filter((c) => {
       if (filterStage && c.stage !== filterStage) return false;
       if (searchQuery && !c.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
@@ -91,20 +144,36 @@ export default function PipelinePage() {
       </div>
 
       {/* Stage Summary */}
-      <div className="grid grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
-        {initialStages.map((stage) => (
-          <button
-            key={stage.id}
-            onClick={() => setFilterStage(filterStage === stage.id ? null : stage.id)}
-            className={`rounded-lg border p-3 text-left transition-all hover:shadow-md ${stage.color} ${
-              filterStage === stage.id ? "ring-2 ring-brand-500" : ""
-            }`}
-          >
-            <div className="text-xs font-medium text-gray-600 truncate">{stage.label}</div>
-            <div className="text-2xl font-bold text-gray-900 mt-1">{stage.count}</div>
-          </button>
-        ))}
-      </div>
+      {error && (
+        <div className="mb-6 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+      {loading ? (
+        <div className="grid grid-cols-4 lg:grid-cols-7 gap-3 mb-8 animate-pulse">
+          {stageConfig.map((s) => (
+            <div key={s.id} className={`rounded-lg border p-3 ${s.color}`}>
+              <div className="h-3 bg-gray-200 rounded w-3/4 mb-2" />
+              <div className="h-7 bg-gray-200 rounded w-1/2" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
+          {stages.map((stage) => (
+            <button
+              key={stage.id}
+              onClick={() => setFilterStage(filterStage === stage.id ? null : stage.id)}
+              className={`rounded-lg border p-3 text-left transition-all hover:shadow-md ${stage.color} ${
+                filterStage === stage.id ? "ring-2 ring-brand-500" : ""
+              }`}
+            >
+              <div className="text-xs font-medium text-gray-600 truncate">{stage.label}</div>
+              <div className="text-2xl font-bold text-gray-900 mt-1">{stage.count}</div>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Cases Table */}
       <div className="card p-0 overflow-hidden">
@@ -114,65 +183,79 @@ export default function PipelinePage() {
           </h2>
           <span className="text-sm text-gray-500">{filteredCases.length} cases</span>
         </div>
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-100">
-            <tr>
-              <th
-                className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-gray-700"
-                onClick={() => handleSort("name")}
-              >
-                Client {sortField === "name" ? (sortAsc ? "↑" : "↓") : ""}
-              </th>
-              <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Stage</th>
-              <th
-                className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-gray-700"
-                onClick={() => handleSort("crisis")}
-              >
-                Crisis Level {sortField === "crisis" ? (sortAsc ? "↑" : "↓") : ""}
-              </th>
-              <th
-                className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-gray-700"
-                onClick={() => handleSort("debt")}
-              >
-                Total Debt {sortField === "debt" ? (sortAsc ? "↑" : "↓") : ""}
-              </th>
-              <th
-                className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-gray-700"
-                onClick={() => handleSort("days")}
-              >
-                Days {sortField === "days" ? (sortAsc ? "↑" : "↓") : ""}
-              </th>
-              <th className="px-6 py-3" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {filteredCases.map((c) => (
-              <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-6 py-4 font-medium text-gray-900">{c.name}</td>
-                <td className="px-6 py-4 text-gray-600">{c.stage.replace(/_/g, " ")}</td>
-                <td className="px-6 py-4">
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${crisisColors[c.crisis] ?? ""}`}>
-                    {c.crisis}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-gray-700">${c.debt.toLocaleString()}</td>
-                <td className="px-6 py-4 text-gray-500">{c.days}d ago</td>
-                <td className="px-6 py-4">
-                  <Link href={`/cases/${c.id}`} className="text-brand-600 hover:underline text-xs font-medium">
-                    Open →
-                  </Link>
-                </td>
-              </tr>
+        {loading ? (
+          <div className="animate-pulse divide-y divide-gray-100">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="px-6 py-4 flex gap-4">
+                <div className="h-4 bg-gray-200 rounded w-32" />
+                <div className="h-4 bg-gray-200 rounded w-28" />
+                <div className="h-4 bg-gray-200 rounded w-16" />
+                <div className="h-4 bg-gray-200 rounded w-20" />
+                <div className="h-4 bg-gray-200 rounded w-12" />
+              </div>
             ))}
-            {filteredCases.length === 0 && (
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                  No cases found matching your criteria.
-                </td>
+                <th
+                  className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-gray-700"
+                  onClick={() => handleSort("name")}
+                >
+                  Client {sortField === "name" ? (sortAsc ? "↑" : "↓") : ""}
+                </th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Stage</th>
+                <th
+                  className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-gray-700"
+                  onClick={() => handleSort("crisis")}
+                >
+                  Crisis Level {sortField === "crisis" ? (sortAsc ? "↑" : "↓") : ""}
+                </th>
+                <th
+                  className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-gray-700"
+                  onClick={() => handleSort("debt")}
+                >
+                  Total Debt {sortField === "debt" ? (sortAsc ? "↑" : "↓") : ""}
+                </th>
+                <th
+                  className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-gray-700"
+                  onClick={() => handleSort("days")}
+                >
+                  Days {sortField === "days" ? (sortAsc ? "↑" : "↓") : ""}
+                </th>
+                <th className="px-6 py-3" />
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filteredCases.map((c) => (
+                <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 font-medium text-gray-900">{c.name}</td>
+                  <td className="px-6 py-4 text-gray-600">{c.stage.replace(/_/g, " ")}</td>
+                  <td className="px-6 py-4">
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${crisisColors[c.crisis] ?? ""}`}>
+                      {c.crisis}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-gray-700">${c.debt.toLocaleString()}</td>
+                  <td className="px-6 py-4 text-gray-500">{c.days}d ago</td>
+                  <td className="px-6 py-4">
+                    <Link href={`/cases/${c.id}`} className="text-brand-600 hover:underline text-xs font-medium">
+                      Open →
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+              {filteredCases.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                    No cases found matching your criteria.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
