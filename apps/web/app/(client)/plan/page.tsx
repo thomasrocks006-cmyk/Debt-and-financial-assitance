@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface PlanOption {
   name: string;
@@ -19,69 +19,78 @@ interface PlanOption {
   allocations: Array<{ creditor: string; amount: number; percent: number }>;
 }
 
-const planOptions: PlanOption[] = [
-  {
-    name: "survival",
-    label: "Survival Plan",
-    strategy: "Pro-Rata",
-    monthly: 260,
-    months: 72,
-    failureProb: 0.15,
-    riskScore: 8,
-    stage: "survive",
+const PLAN_STYLES: Record<string, { color: string; badge: string; badgeLabel: string }> = {
+  survival: {
     color: "border-red-200 bg-red-50",
     badge: "bg-red-100 text-red-700",
     badgeLabel: "Low Risk of Default",
-    description: "Minimum viable payments — protects against default while you stabilise",
-    allocations: [
-      { creditor: "ANZ Bank (Credit Card)", amount: 113, percent: 43.4 },
-      { creditor: "Latitude Finance (Personal Loan)", amount: 147, percent: 56.6 },
-    ],
   },
-  {
-    name: "balanced",
-    label: "Balanced Plan",
-    strategy: "Priority-Based",
-    monthly: 450,
-    months: 48,
-    failureProb: 0.2,
-    riskScore: 5,
-    stage: "stabilise",
+  balanced: {
     color: "border-brand-200 bg-brand-50",
     badge: "bg-brand-100 text-brand-700",
     badgeLabel: "Recommended",
-    description: "Sustainable payments — prevents further deterioration and begins recovery",
-    highlighted: true,
-    allocations: [
-      { creditor: "ANZ Bank (Credit Card)", amount: 170, percent: 37.8 },
-      { creditor: "Latitude Finance (Personal Loan)", amount: 280, percent: 62.2 },
-    ],
   },
-  {
-    name: "aggressive",
-    label: "Aggressive Plan",
-    strategy: "High-Interest First",
-    monthly: 650,
-    months: 32,
-    failureProb: 0.35,
-    riskScore: 3,
-    stage: "recover",
+  aggressive: {
     color: "border-purple-200 bg-purple-50",
     badge: "bg-purple-100 text-purple-700",
     badgeLabel: "Fastest Payoff",
-    description: "Maximum payments — fastest route to debt freedom",
-    allocations: [
-      { creditor: "ANZ Bank (Credit Card)", amount: 370, percent: 56.9 },
-      { creditor: "Latitude Finance (Personal Loan)", amount: 280, percent: 43.1 },
-    ],
   },
-];
+};
 
 export default function PlanPage() {
+  const [planOptions, setPlanOptions] = useState<PlanOption[]>([]);
+  const [disposableIncome, setDisposableIncome] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [expandedPlan, setExpandedPlan] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/plans")
+      .then((r) => r.json())
+      .then((data) => {
+        setDisposableIncome(data.disposableIncome ?? 0);
+        const options: PlanOption[] = (data.plans ?? []).map((p: {
+          name: string;
+          label: string;
+          strategy: string;
+          monthlyPayment: number;
+          totalMonths: number;
+          failureProbability: number;
+          riskScore: number;
+          stage: string;
+          description: string;
+          recommended?: boolean;
+          allocations: Array<{ creditor: string; monthlyPayment: number; allocationPercent: number }>;
+        }) => ({
+          name: p.name,
+          label: p.label,
+          strategy: p.strategy,
+          monthly: p.monthlyPayment,
+          months: p.totalMonths,
+          failureProb: p.failureProbability,
+          riskScore: p.riskScore,
+          stage: p.stage,
+          description: p.description,
+          highlighted: p.recommended ?? false,
+          ...(PLAN_STYLES[p.name] ?? {
+            color: "border-gray-200 bg-gray-50",
+            badge: "bg-gray-100 text-gray-700",
+            badgeLabel: p.name,
+          }),
+          allocations: (p.allocations ?? []).map((a) => ({
+            creditor: a.creditor,
+            amount: a.monthlyPayment,
+            percent: a.allocationPercent,
+          })),
+        }));
+        setPlanOptions(options);
+      })
+      .catch(() => setError("Unable to load plans. Please try again."))
+      .finally(() => setLoading(false));
+  }, []);
 
   async function handleSelectPlan(planName: string) {
     setConfirming(true);
@@ -96,11 +105,32 @@ export default function PlanPage() {
         setConfirmed(true);
       }
     } catch {
-      // Fallback for demo
       setSelectedPlan(planName);
       setConfirmed(true);
     }
     setConfirming(false);
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-gray-200 rounded w-1/3" />
+          <div className="h-6 bg-gray-200 rounded w-2/3" />
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-40 bg-gray-200 rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">{error}</div>
+      </div>
+    );
   }
 
   return (
@@ -108,7 +138,8 @@ export default function PlanPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Recovery Plan</h1>
         <p className="text-gray-600 mt-1">
-          Based on your affordability assessment. Disposable income: <strong>$650/month</strong>.
+          Based on your affordability assessment. Disposable income:{" "}
+          <strong>${disposableIncome.toLocaleString()}/month</strong>.
           All plans are within your capacity — choose the one that feels right.
         </p>
       </div>
