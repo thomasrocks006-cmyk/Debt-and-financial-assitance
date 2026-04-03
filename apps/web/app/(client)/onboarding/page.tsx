@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 type ContactPreference = "email" | "phone" | "sms";
 
@@ -74,17 +74,27 @@ const DEBT_TYPES = [
   { value: "OTHER", label: "Other" },
 ];
 
+const REDIRECT_DELAY_MS = 2000;
+
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [state, setState] = useState<OnboardingState>(INITIAL_STATE);
   const [submitting, setSubmitting] = useState(false);
+  const [showingResults, setShowingResults] = useState(false);
   const [triageResult, setTriageResult] = useState<{
     crisisLevel: string;
     score: number;
     serviceStreams: string[];
     recommendedAction: string;
   } | null>(null);
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+    };
+  }, []);
 
   const steps = [
     { id: 1, title: "Tell us about yourself", description: "Basic contact and safety information" },
@@ -150,10 +160,32 @@ export default function OnboardingPage() {
   async function handleComplete(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
-    // In production: save to database
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setSubmitting(false);
-    router.push("/dashboard");
+    try {
+      const response = await fetch("/api/triage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          debtStress: state.debtStress,
+          rentalStress: state.rentalStress,
+          utilityStress: state.utilityStress,
+          foodInsecurity: state.foodInsecurity,
+          safetyRisk: state.safetyRisk,
+          gamblingRisk: 0, // not collected in this form; default to no gambling risk
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`Triage API returned ${response.status}`);
+      }
+      const data = await response.json();
+      setTriageResult(data.triageResult);
+      setSubmitting(false);
+      setShowingResults(true);
+      redirectTimerRef.current = setTimeout(() => router.push("/dashboard"), REDIRECT_DELAY_MS);
+    } catch (err) {
+      console.error("Triage submission failed:", err);
+      setSubmitting(false);
+      router.push("/dashboard");
+    }
   }
 
   function canProceed(): boolean {
@@ -596,6 +628,45 @@ export default function OnboardingPage() {
         {/* Step 5: Review & Confirm */}
         {step === 5 && (
           <form onSubmit={handleComplete} className="space-y-4">
+            {showingResults ? (
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600 text-center">
+                  Assessment complete. Taking you to your dashboard…
+                </p>
+                {triageResult && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700">Crisis Level</span>
+                      <span className={`text-xs px-3 py-1 rounded-full font-medium ${crisisColors[triageResult.crisisLevel] ?? ""}`}>
+                        {triageResult.crisisLevel}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      <strong>Recommended Action:</strong> {triageResult.recommendedAction}
+                    </div>
+                    {triageResult.serviceStreams.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {triageResult.serviceStreams.map((s) => (
+                          <span key={s} className="text-xs bg-brand-100 text-brand-700 px-2 py-0.5 rounded-full">
+                            {s.replace(/_/g, " ")}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+                    router.push("/dashboard");
+                  }}
+                  className="btn-primary w-full"
+                >
+                  Continue →
+                </button>
+              </div>
+            ) : (
             <div className="space-y-4">
               <div className="bg-gray-50 rounded-lg p-4">
                 <h3 className="text-sm font-medium text-gray-700 mb-2">Your Summary</h3>
@@ -666,9 +737,10 @@ export default function OnboardingPage() {
                 disabled={!state.agreed || submitting}
                 className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {submitting ? "Setting up your account..." : "Complete Setup & Go to Dashboard"}
+                {submitting ? "Assessing..." : "Agree & Submit"}
               </button>
             </div>
+            )}
           </form>
         )}
 
