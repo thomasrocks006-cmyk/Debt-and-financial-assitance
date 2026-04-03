@@ -1,0 +1,563 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ AUTH & USERS ============
+
+enum UserRole {
+  CLIENT
+  CASE_MANAGER
+  ADVOCACY_SPECIALIST
+  COMPLIANCE_OFFICER
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  role          UserRole  @default(CLIENT)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  clientProfile ClientProfile?
+  cases         Case[]         @relation("CaseManager")
+  auditEvents   AuditEvent[]
+  notes         Note[]
+  tasks         Task[]
+}
+
+// ============ CLIENT DOMAIN ============
+
+model ClientProfile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id])
+
+  dateOfBirth         DateTime?
+  phone               String?
+  address             String?
+  preferredContact    String?  @default("email")
+
+  // Safety & vulnerability
+  safeToContact       Boolean  @default(true)
+  safeContactTimes    String?
+  hiddenNotifications Boolean  @default(false)
+  vulnerabilityFlags  String[]
+
+  riskScore           Float?
+  complexityScore     Float?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  cases               Case[]
+  incomeSources       IncomeSource[]
+  expenseItems        ExpenseItem[]
+  budgetSnapshots     BudgetSnapshot[]
+  debtAccounts        DebtAccount[]
+  safetyFlags         SafetyFlag[]
+  documents           Document[]
+  consentRecords      ConsentRecord[]
+}
+
+// ============ TRIAGE ============
+
+enum CrisisLevel {
+  NONE
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ServiceStream {
+  DEBT_MANAGEMENT
+  RENTAL_STRESS
+  UTILITY_HARDSHIP
+  FAMILY_VIOLENCE
+  GAMBLING_SUPPORT
+  EMERGENCY_RELIEF
+  HOMELESSNESS
+  INCOME_SUPPORT
+  LEGAL_REFERRAL
+}
+
+model TriageAssessment {
+  id                String        @id @default(cuid())
+  caseId            String
+  case              Case          @relation(fields: [caseId], references: [id])
+
+  crisisLevel       CrisisLevel
+  serviceStreams    ServiceStream[]
+  urgencyDays       Int?
+  humanRequired     Boolean       @default(false)
+  selfServeEligible Boolean       @default(true)
+
+  debtStress        Int           @default(0)
+  rentalStress      Int           @default(0)
+  utilityStress     Int           @default(0)
+  incomeShock       Boolean       @default(false)
+  safetyRisk        Boolean       @default(false)
+  gamblingRisk      Boolean       @default(false)
+  foodInsecurity    Boolean       @default(false)
+
+  rawAnswers        Json?
+  createdAt         DateTime      @default(now())
+}
+
+// ============ CASE MANAGEMENT ============
+
+enum CaseStatus {
+  LEAD
+  TRIAGE
+  CRISIS_STABILISATION
+  ASSESSMENT
+  PLAN_DESIGN
+  NEGOTIATING
+  ACTIVE_RECOVERY
+  MONITORING
+  REBUILD
+  COMPLETED
+  REFERRED_OUT
+  CLOSED
+}
+
+model Case {
+  id              String        @id @default(cuid())
+  clientId        String
+  client          ClientProfile @relation(fields: [clientId], references: [id])
+
+  caseManagerId   String?
+  caseManager     User?         @relation("CaseManager", fields: [caseManagerId], references: [id])
+
+  status          CaseStatus    @default(LEAD)
+  complexityScore Float?
+  recoveryStage   String?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  triageAssessments TriageAssessment[]
+  debtAccounts      DebtAccount[]
+  paymentPlans      PaymentPlan[]
+  negotiations      Negotiation[]
+  referrals         Referral[]
+  supportNeeds      SupportNeed[]
+  crisisEvents      CrisisEvent[]
+  advocacyActions   AdvocacyAction[]
+  ledgerEntries     LedgerEntry[]
+  documents         Document[]
+  notes             Note[]
+  tasks             Task[]
+  auditEvents       AuditEvent[]
+  complaints        Complaint[]
+  disclosureRecords DisclosureRecord[]
+}
+
+// ============ FINANCIAL DATA ============
+
+enum DebtType {
+  CREDIT_CARD
+  PERSONAL_LOAN
+  CAR_LOAN
+  MORTGAGE
+  BNPL
+  PAYDAY_LOAN
+  UTILITY_BILL
+  RENT_ARREARS
+  TAX_DEBT
+  MEDICAL_DEBT
+  TELCO
+  OTHER
+}
+
+enum DebtStatus {
+  ACTIVE
+  IN_HARDSHIP
+  NEGOTIATING
+  SETTLED
+  PAID_OFF
+  WRITTEN_OFF
+  REFERRED
+}
+
+model DebtAccount {
+  id                String        @id @default(cuid())
+  clientId          String
+  client            ClientProfile @relation(fields: [clientId], references: [id])
+  caseId            String?
+  case              Case?         @relation(fields: [caseId], references: [id])
+
+  creditorName      String
+  debtType          DebtType
+  originalBalance   Float
+  currentBalance    Float
+  minimumPayment    Float?
+  interestRate      Float?
+  arrearsAmount     Float?        @default(0)
+  status            DebtStatus    @default(ACTIVE)
+  externalReference String?
+  isCoercedDebt     Boolean       @default(false)
+
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  planAllocations   PlanAllocation[]
+  negotiations      Negotiation[]
+}
+
+model IncomeSource {
+  id        String        @id @default(cuid())
+  clientId  String
+  client    ClientProfile @relation(fields: [clientId], references: [id])
+
+  source    String
+  amount    Float
+  frequency String
+  isStable  Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+}
+
+model ExpenseItem {
+  id          String        @id @default(cuid())
+  clientId    String
+  client      ClientProfile @relation(fields: [clientId], references: [id])
+
+  category    String
+  amount      Float
+  frequency   String
+  isEssential Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+}
+
+model BudgetSnapshot {
+  id                  String        @id @default(cuid())
+  clientId            String
+  client              ClientProfile @relation(fields: [clientId], references: [id])
+
+  incomeTotal         Float
+  expenseTotal        Float
+  disposableIncome    Float
+  survivalBudget      Float?
+  stabilisationBudget Float?
+  recoveryBudget      Float?
+  confidenceScore     Float?
+
+  createdAt           DateTime @default(now())
+}
+
+// ============ PLAN & PAYMENTS ============
+
+enum AllocationStrategy {
+  PRO_RATA
+  PRIORITY_BASED
+  HIGH_INTEREST_FIRST
+  NEGOTIATED_SETTLEMENT
+  SURVIVAL_MODE
+}
+
+enum PlanStatus {
+  DRAFT
+  PROPOSED
+  APPROVED
+  ACTIVE
+  PAUSED
+  ADJUSTED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model PaymentPlan {
+  id                      String             @id @default(cuid())
+  caseId                  String
+  case                    Case               @relation(fields: [caseId], references: [id])
+
+  paymentAmount           Float
+  frequency               String             @default("fortnightly")
+  strategy                AllocationStrategy @default(PRO_RATA)
+  riskScore               Float?
+  failureProbability      Float?
+  estimatedCompletionDate DateTime?
+  status                  PlanStatus         @default(DRAFT)
+  stage                   String?
+
+  feeModel                String?
+  feeAmount               Float?
+
+  approvedAt              DateTime?
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+
+  allocations             PlanAllocation[]
+  ledgerEntries           LedgerEntry[]
+}
+
+model PlanAllocation {
+  id                String      @id @default(cuid())
+  planId            String
+  plan              PaymentPlan @relation(fields: [planId], references: [id])
+  debtId            String
+  debt              DebtAccount @relation(fields: [debtId], references: [id])
+
+  allocationPercent Float
+  fixedAmount       Float?
+}
+
+// ============ LEDGER ============
+
+enum LedgerEntryType {
+  DEBIT_RECEIVED
+  FEE_CHARGED
+  CREDITOR_PAYOUT
+  REFUND
+  ADJUSTMENT
+  FAILED_DEBIT
+  RESERVE
+}
+
+model LedgerEntry {
+  id            String          @id @default(cuid())
+  caseId        String?
+  case          Case?           @relation(fields: [caseId], references: [id])
+  planId        String?
+  plan          PaymentPlan?    @relation(fields: [planId], references: [id])
+
+  entryType     LedgerEntryType
+  amount        Float
+  direction     String
+  accountCode   String?
+  effectiveAt   DateTime        @default(now())
+  metadata      Json?
+  immutableHash String?
+
+  createdAt     DateTime        @default(now())
+}
+
+// ============ NEGOTIATION & ADVOCACY ============
+
+enum NegotiationStatus {
+  PENDING
+  SENT
+  RESPONSE_RECEIVED
+  ACCEPTED
+  REJECTED
+  COUNTER_OFFERED
+  ESCALATED
+  CLOSED
+}
+
+model Negotiation {
+  id               String            @id @default(cuid())
+  caseId           String
+  case             Case              @relation(fields: [caseId], references: [id])
+  debtId           String?
+  debt             DebtAccount?      @relation(fields: [debtId], references: [id])
+
+  creditorName     String
+  requestType      String
+  status           NegotiationStatus @default(PENDING)
+  sentAt           DateTime?
+  responseDeadline DateTime?
+  responseAt       DateTime?
+  offeredTerms     Json?
+  acceptedTerms    Json?
+
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}
+
+model AdvocacyAction {
+  id           String   @id @default(cuid())
+  caseId       String
+  case         Case     @relation(fields: [caseId], references: [id])
+
+  actionType   String
+  target       String
+  summary      String
+  outcome      String?
+  evidencePath String?
+
+  createdAt    DateTime @default(now())
+}
+
+// ============ REFERRAL ============
+
+enum ReferralStatus {
+  PENDING
+  SENT
+  ACCEPTED
+  IN_PROGRESS
+  COMPLETED
+  DECLINED
+}
+
+model Referral {
+  id           String         @id @default(cuid())
+  caseId       String
+  case         Case           @relation(fields: [caseId], references: [id])
+
+  serviceType  ServiceStream
+  providerName String?
+  reason       String
+  status       ReferralStatus @default(PENDING)
+  sentAt       DateTime?
+  outcomeNotes String?
+  consentGiven Boolean        @default(false)
+
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model SupportNeed {
+  id        String        @id @default(cuid())
+  caseId    String
+  case      Case          @relation(fields: [caseId], references: [id])
+
+  needType  ServiceStream
+  severity  Int           @default(5)
+  resolved  Boolean       @default(false)
+  notes     String?
+
+  createdAt DateTime      @default(now())
+}
+
+// ============ SAFETY & VULNERABILITY ============
+
+model SafetyFlag {
+  id        String        @id @default(cuid())
+  clientId  String
+  client    ClientProfile @relation(fields: [clientId], references: [id])
+
+  flagType  String
+  severity  String
+  notes     String?
+  isActive  Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CrisisEvent {
+  id          String      @id @default(cuid())
+  caseId      String
+  case        Case        @relation(fields: [caseId], references: [id])
+
+  eventType   String
+  severity    CrisisLevel
+  description String?
+  resolvedAt  DateTime?
+  actions     Json?
+
+  createdAt   DateTime    @default(now())
+}
+
+// ============ COMPLIANCE & AUDIT ============
+
+model Document {
+  id          String         @id @default(cuid())
+  clientId    String?
+  client      ClientProfile? @relation(fields: [clientId], references: [id])
+  caseId      String?
+  case        Case?          @relation(fields: [caseId], references: [id])
+
+  name        String
+  type        String
+  storagePath String
+  mimeType    String?
+
+  uploadedAt  DateTime @default(now())
+}
+
+model ConsentRecord {
+  id          String        @id @default(cuid())
+  clientId    String
+  client      ClientProfile @relation(fields: [clientId], references: [id])
+
+  consentType String
+  givenAt     DateTime @default(now())
+  revokedAt   DateTime?
+  documentId  String?
+}
+
+model DisclosureRecord {
+  id             String   @id @default(cuid())
+  caseId         String
+  case           Case     @relation(fields: [caseId], references: [id])
+
+  disclosureType String
+  deliveredAt    DateTime @default(now())
+  acknowledgedAt DateTime?
+}
+
+model Complaint {
+  id          String   @id @default(cuid())
+  caseId      String
+  case        Case     @relation(fields: [caseId], references: [id])
+
+  subject     String
+  description String
+  status      String   @default("open")
+  resolvedAt  DateTime?
+  resolution  String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditEvent {
+  id        String   @id @default(cuid())
+  caseId    String?
+  case      Case?    @relation(fields: [caseId], references: [id])
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+
+  entity    String
+  entityId  String?
+  action    String
+  oldValue  Json?
+  newValue  Json?
+  ipAddress String?
+
+  createdAt DateTime @default(now())
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+
+  content   String
+  isPrivate Boolean  @default(false)
+  isPinned  Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  caseId      String
+  case        Case      @relation(fields: [caseId], references: [id])
+  assigneeId  String?
+  assignee    User?     @relation(fields: [assigneeId], references: [id])
+
+  title       String
+  description String?
+  dueDate     DateTime?
+  priority    String    @default("medium")
+  status      String    @default("todo")
+  slaDeadline DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
