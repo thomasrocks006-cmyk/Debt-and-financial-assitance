@@ -1,69 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useState, use } from "react";
+import { useState, useEffect, use } from "react";
 
 interface CaseDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
-// Mock case database
-const caseData: Record<string, {
+interface CaseData {
   name: string;
   status: string;
   crisisLevel: string;
   stage: string;
-  caseManager: string;
+  caseManager: string | null;
   debts: Array<{ creditor: string; type: string; balance: number; interest: number; arrears: number }>;
   compliance: Array<{ label: string; passed: boolean }>;
   notes: Array<{ author: string; time: string; text: string }>;
-}> = {
-  c1: {
-    name: "Alex Demo",
-    status: "ASSESSMENT",
-    crisisLevel: "MEDIUM",
-    stage: "Stabilise",
-    caseManager: "Jane Smith",
-    debts: [
-      { creditor: "ANZ Bank", type: "Credit Card", balance: 7500, interest: 19.99, arrears: 300 },
-      { creditor: "Latitude Finance", type: "Personal Loan", balance: 9800, interest: 14.99, arrears: 0 },
-    ],
-    compliance: [
-      { label: "Consent recorded", passed: true },
-      { label: "Affordability assessed", passed: true },
-      { label: "Fee disclosure delivered", passed: true },
-      { label: "Service terms provided", passed: true },
-      { label: "Complaint process sent", passed: false },
-      { label: "Privacy disclosure", passed: true },
-    ],
-    notes: [
-      { author: "Jane Smith", time: "2 days ago", text: "Initial assessment completed. Client in stabilise phase. ANZ hardship application to be submitted." },
-    ],
-  },
-  c2: {
-    name: "Sarah Wilson",
-    status: "CRISIS_STABILISATION",
-    crisisLevel: "HIGH",
-    stage: "Survive",
-    caseManager: "Jane Smith",
-    debts: [
-      { creditor: "CBA", type: "Credit Card", balance: 12000, interest: 21.49, arrears: 2500 },
-      { creditor: "Westpac", type: "Mortgage", balance: 30000, interest: 5.99, arrears: 4500 },
-    ],
-    compliance: [
-      { label: "Consent recorded", passed: true },
-      { label: "Affordability assessed", passed: false },
-      { label: "Fee disclosure delivered", passed: true },
-      { label: "Service terms provided", passed: true },
-      { label: "Complaint process sent", passed: true },
-      { label: "Privacy disclosure", passed: true },
-    ],
-    notes: [
-      { author: "Jane Smith", time: "1 day ago", text: "Eviction notice received. Urgent referral to tenancy support. Safety assessment completed — no immediate safety concerns." },
-      { author: "System", time: "1 day ago", text: "Auto-triage: CRITICAL → HIGH after initial stabilisation. Service streams: RENTAL_STRESS, FAMILY_VIOLENCE." },
-    ],
-  },
-};
+}
 
 const statusColors: Record<string, string> = {
   TRIAGE: "bg-blue-100 text-blue-700",
@@ -85,16 +38,69 @@ const crisisColors: Record<string, string> = {
 
 export default function CaseDetailPage({ params }: CaseDetailPageProps) {
   const { id } = use(params);
-  const data = caseData[id];
+  const [data, setData] = useState<CaseData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
   const [noteText, setNoteText] = useState("");
-  const [notes, setNotes] = useState(data?.notes ?? []);
-  const [caseStatus, setCaseStatus] = useState(data?.status ?? "TRIAGE");
+  const [notes, setNotes] = useState<Array<{ author: string; time: string; text: string }>>([]);
+  const [caseStatus, setCaseStatus] = useState("TRIAGE");
 
-  if (!data) {
+  useEffect(() => {
+    fetch(`/api/cases/${id}`)
+      .then(async (res) => {
+        if (res.status === 404) {
+          setNotFound(true);
+          return;
+        }
+        if (!res.ok) {
+          setFetchError(true);
+          return;
+        }
+        const json: CaseData = await res.json();
+        setData(json);
+        setNotes(json.notes);
+        setCaseStatus(json.status);
+      })
+      .catch(() => setFetchError(true))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-pulse">
+        <div className="h-8 bg-gray-200 rounded w-80 mb-6" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="space-y-4">
+            <div className="card h-48 bg-gray-100" />
+            <div className="card h-40 bg-gray-100" />
+          </div>
+          <div className="lg:col-span-2 space-y-4">
+            <div className="card h-40 bg-gray-100" />
+            <div className="card h-48 bg-gray-100" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (notFound) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Case #{id} Not Found</h1>
         <p className="text-gray-600 mb-6">This case could not be found in the system.</p>
+        <Link href="/pipeline" className="btn-primary">
+          ← Back to Pipeline
+        </Link>
+      </div>
+    );
+  }
+
+  if (fetchError || !data) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Unable to Load Case</h1>
+        <p className="text-gray-600 mb-6">There was an error loading case #{id}. Please try again later.</p>
         <Link href="/pipeline" className="btn-primary">
           ← Back to Pipeline
         </Link>
@@ -172,7 +178,7 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Case Manager</span>
-                <span className="font-medium">{data.caseManager}</span>
+                <span className="font-medium">{data.caseManager ?? "Unassigned"}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Total Debt</span>
