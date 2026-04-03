@@ -11,7 +11,7 @@ interface MetricItem {
   positive: boolean;
 }
 
-interface TaskItem2 {
+interface DashboardTask {
   title: string;
   due: string;
   priority: string;
@@ -22,7 +22,7 @@ interface DashboardData {
   recoveryScore: number;
   stage: string;
   metrics: MetricItem[];
-  tasks: TaskItem2[];
+  tasks: DashboardTask[];
 }
 
 export default function DashboardPage() {
@@ -61,6 +61,39 @@ export default function DashboardPage() {
 
       const crisisLevel = totalArrears > 1000 ? "HIGH" : totalArrears > 0 ? "MEDIUM" : "LOW";
 
+      // Derive actionable tasks from live API data
+      const generatedTasks: DashboardTask[] = [];
+      const debtsList: Array<{ creditor: string; arrears: number }> = debtsData?.debts ?? [];
+      const debtWithArrears = debtsList.find((d) => d.arrears > 0);
+      if (debtWithArrears) {
+        generatedTasks.push({
+          title: `Submit hardship application to ${debtWithArrears.creditor}`,
+          due: "2 days",
+          priority: "high",
+          completed: false,
+        });
+      }
+      if (housingAtRisk) {
+        generatedTasks.push({
+          title: "Contact landlord or mortgage lender about housing stress",
+          due: "3 days",
+          priority: "high",
+          completed: false,
+        });
+      }
+      generatedTasks.push({
+        title: "Update budget with latest income and expenses",
+        due: "5 days",
+        priority: "medium",
+        completed: false,
+      });
+      generatedTasks.push({
+        title: "Review recovery plan with case manager",
+        due: "1 week",
+        priority: "medium",
+        completed: false,
+      });
+
       setData({
         recoveryScore,
         stage,
@@ -90,11 +123,7 @@ export default function DashboardPage() {
             positive: totalArrears === 0,
           },
         ],
-        tasks: [
-          { title: "Submit hardship application to creditor", due: "2 days", priority: "high", completed: false },
-          { title: "Update budget with new income", due: "5 days", priority: "medium", completed: false },
-          { title: "Review plan with case manager", due: "1 week", priority: "medium", completed: false },
-        ],
+        tasks: generatedTasks,
       });
       setLoading(false);
     });
