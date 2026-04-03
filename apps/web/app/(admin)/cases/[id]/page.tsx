@@ -124,7 +124,8 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
     ];
     const currentIndex = stageOrder.indexOf(caseStatus);
     if (currentIndex < stageOrder.length - 1) {
-      setCaseStatus(stageOrder[currentIndex + 1]);
+      const nextStage = stageOrder[currentIndex + 1];
+      if (nextStage) setCaseStatus(nextStage);
     }
   }
 

@@ -259,7 +259,7 @@ export default function OnboardingPage() {
           <div className="w-6 h-6 rounded-full bg-brand-600 text-white text-xs flex items-center justify-center font-semibold">
             {step}
           </div>
-          <h2 className="font-semibold text-gray-900">{steps[step - 1].title}</h2>
+          <h2 className="font-semibold text-gray-900">{steps[step - 1]?.title}</h2>
         </div>
 
         {/* Step 1: About You */}
