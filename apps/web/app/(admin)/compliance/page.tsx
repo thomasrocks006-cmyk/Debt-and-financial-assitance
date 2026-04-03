@@ -1,37 +1,69 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-const initialComplianceItems = [
-  {
-    id: "c1", client: "Alex Demo",
-    affordability: true, consent: true, feeDisclosure: true, serviceTerms: true,
-    complaintProcess: false, privacy: true, isCompliant: false, issues: 1,
-  },
-  {
-    id: "c2", client: "Sarah Wilson",
-    affordability: true, consent: true, feeDisclosure: true, serviceTerms: true,
-    complaintProcess: true, privacy: true, isCompliant: true, issues: 0,
-  },
-  {
-    id: "c3", client: "James Chen",
-    affordability: true, consent: false, feeDisclosure: false, serviceTerms: false,
-    complaintProcess: false, privacy: false, isCompliant: false, issues: 4,
-  },
-];
+interface ComplianceItem {
+  id: string;
+  client: string;
+  affordability: boolean;
+  consent: boolean;
+  feeDisclosure: boolean;
+  serviceTerms: boolean;
+  complaintProcess: boolean;
+  privacy: boolean;
+  isCompliant: boolean;
+  issues: number;
+}
+
+function mapApiItem(item: {
+  caseId: string;
+  clientName: string;
+  affordabilityAssessed: boolean;
+  consentRecorded: boolean;
+  feeDisclosure: boolean;
+  serviceTerms: boolean;
+  complaintProcess: boolean;
+  privacyDisclosure: boolean;
+  isCompliant: boolean;
+  issues: unknown[];
+}): ComplianceItem {
+  return {
+    id: item.caseId,
+    client: item.clientName,
+    affordability: item.affordabilityAssessed,
+    consent: item.consentRecorded,
+    feeDisclosure: item.feeDisclosure,
+    serviceTerms: item.serviceTerms,
+    complaintProcess: item.complaintProcess,
+    privacy: item.privacyDisclosure,
+    isCompliant: item.isCompliant,
+    issues: item.issues.length,
+  };
+}
 
 export default function ComplianceDashboardPage() {
-  const [complianceItems, setComplianceItems] = useState(initialComplianceItems);
+  const [complianceItems, setComplianceItems] = useState<ComplianceItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
+
+  async function fetchCompliance() {
+    const res = await fetch("/api/compliance");
+    const data = await res.json();
+    setComplianceItems((data.items ?? []).map(mapApiItem));
+    setLastChecked(data.checkedAt ? new Date(data.checkedAt).toLocaleTimeString() : null);
+  }
+
+  useEffect(() => {
+    fetchCompliance().finally(() => setLoading(false));
+  }, []);
 
   const compliant = complianceItems.filter((c) => c.isCompliant).length;
   const nonCompliant = complianceItems.filter((c) => !c.isCompliant).length;
 
   async function handleRunCheck() {
     setChecking(true);
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setLastChecked(new Date().toLocaleTimeString());
+    await fetchCompliance();
     setChecking(false);
   }
 
@@ -49,6 +81,24 @@ export default function ComplianceDashboardPage() {
           .filter((v) => !v).length;
         return { ...updated, isCompliant: allPassed, issues: issueCount };
       })
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-pulse">
+        <div className="h-8 bg-gray-200 rounded w-64 mb-6" />
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="card h-20 bg-gray-100" />
+          ))}
+        </div>
+        <div className="card p-6 space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-10 bg-gray-100 rounded" />
+          ))}
+        </div>
+      </div>
     );
   }
 
