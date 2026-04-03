@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 interface ComplianceItem {
   id: string;
@@ -47,16 +47,16 @@ export default function ComplianceDashboardPage() {
   const [checking, setChecking] = useState(false);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
 
-  async function fetchCompliance() {
+  const fetchCompliance = useCallback(async () => {
     const res = await fetch("/api/compliance");
     const data = await res.json();
     setComplianceItems((data.items ?? []).map(mapApiItem));
     setLastChecked(data.checkedAt ? new Date(data.checkedAt).toLocaleTimeString() : null);
-  }
+  }, []);
 
   useEffect(() => {
     fetchCompliance().finally(() => setLoading(false));
-  }, []);
+  }, [fetchCompliance]);
 
   const compliant = complianceItems.filter((c) => c.isCompliant).length;
   const nonCompliant = complianceItems.filter((c) => !c.isCompliant).length;

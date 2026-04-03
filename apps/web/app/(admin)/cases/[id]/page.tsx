@@ -41,6 +41,7 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
   const [data, setData] = useState<CaseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [notes, setNotes] = useState<Array<{ author: string; time: string; text: string }>>([]);
   const [caseStatus, setCaseStatus] = useState("TRIAGE");
@@ -52,12 +53,16 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
           setNotFound(true);
           return;
         }
+        if (!res.ok) {
+          setFetchError(true);
+          return;
+        }
         const json: CaseData = await res.json();
         setData(json);
         setNotes(json.notes);
         setCaseStatus(json.status);
       })
-      .catch(() => setNotFound(true))
+      .catch(() => setFetchError(true))
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -79,11 +84,23 @@ export default function CaseDetailPage({ params }: CaseDetailPageProps) {
     );
   }
 
-  if (notFound || !data) {
+  if (notFound) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Case #{id} Not Found</h1>
         <p className="text-gray-600 mb-6">This case could not be found in the system.</p>
+        <Link href="/pipeline" className="btn-primary">
+          ← Back to Pipeline
+        </Link>
+      </div>
+    );
+  }
+
+  if (fetchError || !data) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Unable to Load Case</h1>
+        <p className="text-gray-600 mb-6">There was an error loading case #{id}. Please try again later.</p>
         <Link href="/pipeline" className="btn-primary">
           ← Back to Pipeline
         </Link>
