@@ -1,6 +1,48 @@
+"use client";
+
 import Link from "next/link";
+import { signIn } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState, type FormEvent } from "react";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    if (!email || !password) {
+      setError("Please enter your email and password.");
+      return;
+    }
+
+    setLoading(true);
+
+    const result = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
+    });
+
+    setLoading(false);
+
+    if (result?.error) {
+      setError("Invalid email or password. Please try again.");
+      return;
+    }
+
+    router.push(callbackUrl);
+    router.refresh();
+  }
+
   return (
     <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -16,29 +58,49 @@ export default function LoginPage() {
         </div>
 
         <div className="card">
-          <form className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                 Email address
               </label>
               <input
+                id="email"
                 type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                 placeholder="you@example.com"
+                autoComplete="email"
+                required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                 Password
               </label>
               <input
+                id="password"
                 type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                 placeholder="••••••••"
+                autoComplete="current-password"
+                required
               />
             </div>
-            <button type="submit" className="btn-primary w-full">
-              Sign in
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? "Signing in…" : "Sign in"}
             </button>
           </form>
 
@@ -47,6 +109,21 @@ export default function LoginPage() {
             <Link href="/register" className="text-brand-600 hover:underline font-medium">
               Get started free
             </Link>
+          </div>
+
+          {/* Demo credentials hint */}
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <p className="text-xs text-gray-400 text-center mb-2">Demo accounts:</p>
+            <div className="space-y-1 text-xs text-gray-500">
+              <div className="flex justify-between">
+                <span>Client:</span>
+                <span className="font-mono">demo.client@example.com / client123</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Admin:</span>
+                <span className="font-mono">admin@recoveryos.com.au / admin123</span>
+              </div>
+            </div>
           </div>
         </div>
 
