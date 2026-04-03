@@ -74,6 +74,8 @@ const DEBT_TYPES = [
   { value: "OTHER", label: "Other" },
 ];
 
+const REDIRECT_DELAY_MS = 2000;
+
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -168,7 +170,7 @@ export default function OnboardingPage() {
           utilityStress: state.utilityStress,
           foodInsecurity: state.foodInsecurity,
           safetyRisk: state.safetyRisk,
-          gamblingRisk: 0,
+          gamblingRisk: 0, // not collected in this form; default to no gambling risk
         }),
       });
       if (!response.ok) {
@@ -178,7 +180,7 @@ export default function OnboardingPage() {
       setTriageResult(data.triageResult);
       setSubmitting(false);
       setShowingResults(true);
-      redirectTimerRef.current = setTimeout(() => router.push("/dashboard"), 2000);
+      redirectTimerRef.current = setTimeout(() => router.push("/dashboard"), REDIRECT_DELAY_MS);
     } catch (err) {
       console.error("Triage submission failed:", err);
       setSubmitting(false);
