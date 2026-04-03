@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 type ContactPreference = "email" | "phone" | "sms";
 
@@ -86,6 +86,13 @@ export default function OnboardingPage() {
     serviceStreams: string[];
     recommendedAction: string;
   } | null>(null);
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+    };
+  }, []);
 
   const steps = [
     { id: 1, title: "Tell us about yourself", description: "Basic contact and safety information" },
@@ -164,12 +171,17 @@ export default function OnboardingPage() {
           gamblingRisk: 0,
         }),
       });
+      if (!response.ok) {
+        throw new Error(`Triage API returned ${response.status}`);
+      }
       const data = await response.json();
       setTriageResult(data.triageResult);
       setSubmitting(false);
       setShowingResults(true);
-      setTimeout(() => router.push("/dashboard"), 2000);
-    } catch {
+      redirectTimerRef.current = setTimeout(() => router.push("/dashboard"), 2000);
+    } catch (err) {
+      console.error("Triage submission failed:", err);
+      setSubmitting(false);
       router.push("/dashboard");
     }
   }
@@ -643,7 +655,10 @@ export default function OnboardingPage() {
                 )}
                 <button
                   type="button"
-                  onClick={() => router.push("/dashboard")}
+                  onClick={() => {
+                    if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+                    router.push("/dashboard");
+                  }}
                   className="btn-primary w-full"
                 >
                   Continue →
