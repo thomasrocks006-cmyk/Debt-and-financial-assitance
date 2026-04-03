@@ -1,106 +1,137 @@
-import Link from "next/link";
+"use client";
 
-const complianceItems = [
+import { useState } from "react";
+
+const initialComplianceItems = [
   {
-    id: "c1",
-    client: "Alex Demo",
-    affordability: true,
-    consent: true,
-    feeDisclosure: true,
-    serviceTerms: true,
-    complaintProcess: false,
-    privacy: true,
-    isCompliant: false,
-    issues: 1,
+    id: "c1", client: "Alex Demo",
+    affordability: true, consent: true, feeDisclosure: true, serviceTerms: true,
+    complaintProcess: false, privacy: true, isCompliant: false, issues: 1,
   },
   {
-    id: "c2",
-    client: "Sarah Wilson",
-    affordability: true,
-    consent: true,
-    feeDisclosure: true,
-    serviceTerms: true,
-    complaintProcess: true,
-    privacy: true,
-    isCompliant: true,
-    issues: 0,
+    id: "c2", client: "Sarah Wilson",
+    affordability: true, consent: true, feeDisclosure: true, serviceTerms: true,
+    complaintProcess: true, privacy: true, isCompliant: true, issues: 0,
   },
   {
-    id: "c3",
-    client: "James Chen",
-    affordability: true,
-    consent: false,
-    feeDisclosure: false,
-    serviceTerms: false,
-    complaintProcess: false,
-    privacy: false,
-    isCompliant: false,
-    issues: 4,
+    id: "c3", client: "James Chen",
+    affordability: true, consent: false, feeDisclosure: false, serviceTerms: false,
+    complaintProcess: false, privacy: false, isCompliant: false, issues: 4,
   },
 ];
 
 export default function ComplianceDashboardPage() {
+  const [complianceItems, setComplianceItems] = useState(initialComplianceItems);
+  const [checking, setChecking] = useState(false);
+  const [lastChecked, setLastChecked] = useState<string | null>(null);
+
   const compliant = complianceItems.filter((c) => c.isCompliant).length;
   const nonCompliant = complianceItems.filter((c) => !c.isCompliant).length;
 
+  async function handleRunCheck() {
+    setChecking(true);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    setLastChecked(new Date().toLocaleTimeString());
+    setChecking(false);
+  }
+
+  function handleFixIssue(clientId: string, field: string) {
+    setComplianceItems(
+      complianceItems.map((c) => {
+        if (c.id !== clientId) return c;
+        const updated = { ...c, [field]: true };
+        // Recalculate compliance
+        const allPassed = updated.affordability && updated.consent &&
+          updated.feeDisclosure && updated.serviceTerms &&
+          updated.complaintProcess && updated.privacy;
+        const issueCount = [updated.affordability, updated.consent, updated.feeDisclosure,
+          updated.serviceTerms, updated.complaintProcess, updated.privacy]
+          .filter((v) => !v).length;
+        return { ...updated, isCompliant: allPassed, issues: issueCount };
+      })
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link href="/pipeline" className="text-sm text-gray-600 hover:text-gray-900">
-            ← Pipeline
-          </Link>
-          <h1 className="font-semibold text-gray-900">Compliance Dashboard</h1>
-          <button className="btn-primary text-sm">Run Compliance Check</button>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Compliance Dashboard</h1>
+          {lastChecked && (
+            <p className="text-sm text-gray-500 mt-1">Last checked: {lastChecked}</p>
+          )}
         </div>
-      </header>
+        <button
+          onClick={handleRunCheck}
+          disabled={checking}
+          className="btn-primary text-sm disabled:opacity-50"
+        >
+          {checking ? "Checking..." : "Run Compliance Check"}
+        </button>
+      </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Summary */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="card text-center">
-            <div className="text-2xl font-bold text-green-600">{compliant}</div>
-            <div className="text-sm text-gray-500">Fully Compliant</div>
-          </div>
-          <div className="card text-center">
-            <div className="text-2xl font-bold text-red-600">{nonCompliant}</div>
-            <div className="text-sm text-gray-500">Non-Compliant</div>
-          </div>
-          <div className="card text-center">
-            <div className="text-2xl font-bold text-gray-900">
-              {Math.round((compliant / complianceItems.length) * 100)}%
-            </div>
-            <div className="text-sm text-gray-500">Compliance Rate</div>
-          </div>
+      {/* Summary */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="card text-center">
+          <div className="text-2xl font-bold text-green-600">{compliant}</div>
+          <div className="text-sm text-gray-500">Fully Compliant</div>
         </div>
-
-        {/* Checklist Table */}
-        <div className="card p-0 overflow-hidden mb-6">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900">Case Compliance Status</h2>
+        <div className="card text-center">
+          <div className="text-2xl font-bold text-red-600">{nonCompliant}</div>
+          <div className="text-sm text-gray-500">Non-Compliant</div>
+        </div>
+        <div className="card text-center">
+          <div className="text-2xl font-bold text-gray-900">
+            {complianceItems.length > 0 ? Math.round((compliant / complianceItems.length) * 100) : 0}%
           </div>
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Client</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Affordability</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Consent</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Fee Disc.</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Terms</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Complaint</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Privacy</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {complianceItems.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-50">
+          <div className="text-sm text-gray-500">Compliance Rate</div>
+        </div>
+      </div>
+
+      {/* Checklist Table */}
+      <div className="card p-0 overflow-hidden mb-6">
+        <div className="px-6 py-4 border-b border-gray-100">
+          <h2 className="font-semibold text-gray-900">Case Compliance Status</h2>
+        </div>
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-100">
+            <tr>
+              <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase">Client</th>
+              <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Affordability</th>
+              <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Consent</th>
+              <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Fee Disc.</th>
+              <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Terms</th>
+              <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Complaint</th>
+              <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Privacy</th>
+              <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {complianceItems.map((c) => {
+              const fields = [
+                { key: "affordability", value: c.affordability },
+                { key: "consent", value: c.consent },
+                { key: "feeDisclosure", value: c.feeDisclosure },
+                { key: "serviceTerms", value: c.serviceTerms },
+                { key: "complaintProcess", value: c.complaintProcess },
+                { key: "privacy", value: c.privacy },
+              ];
+              return (
+                <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 font-medium text-gray-900">{c.client}</td>
-                  {[c.affordability, c.consent, c.feeDisclosure, c.serviceTerms, c.complaintProcess, c.privacy].map((v, i) => (
+                  {fields.map((f, i) => (
                     <td key={i} className="text-center px-4 py-4">
-                      <span className={v ? "text-green-500" : "text-red-500"}>
-                        {v ? "✓" : "✗"}
-                      </span>
+                      {f.value ? (
+                        <span className="text-green-500">✓</span>
+                      ) : (
+                        <button
+                          onClick={() => handleFixIssue(c.id, f.key)}
+                          className="text-red-500 hover:text-green-500 transition-colors cursor-pointer"
+                          title={`Fix: ${f.key}`}
+                        >
+                          ✗
+                        </button>
+                      )}
                     </td>
                   ))}
                   <td className="text-center px-4 py-4">
@@ -111,30 +142,30 @@ export default function ComplianceDashboardPage() {
                     </span>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
-        {/* Regulatory Reference */}
-        <div className="card bg-blue-50 border-blue-200">
-          <h2 className="font-semibold text-gray-900 mb-2">Regulatory Framework</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-gray-700">
-            <div>
-              <div className="font-medium">NCCP Act</div>
-              <div className="text-gray-600">National Consumer Credit Protection — Responsible Lending obligations</div>
-            </div>
-            <div>
-              <div className="font-medium">ASIC RG 209</div>
-              <div className="text-gray-600">Affordability assessment requirements for credit providers</div>
-            </div>
-            <div>
-              <div className="font-medium">AFCA Rules</div>
-              <div className="text-gray-600">Complaint handling and dispute resolution requirements</div>
-            </div>
+      {/* Regulatory Reference */}
+      <div className="card bg-blue-50 border-blue-200">
+        <h2 className="font-semibold text-gray-900 mb-2">Regulatory Framework</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-gray-700">
+          <div>
+            <div className="font-medium">NCCP Act</div>
+            <div className="text-gray-600">National Consumer Credit Protection — Responsible Lending obligations</div>
+          </div>
+          <div>
+            <div className="font-medium">ASIC RG 209</div>
+            <div className="text-gray-600">Affordability assessment requirements for credit providers</div>
+          </div>
+          <div>
+            <div className="font-medium">AFCA Rules</div>
+            <div className="text-gray-600">Complaint handling and dispute resolution requirements</div>
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
