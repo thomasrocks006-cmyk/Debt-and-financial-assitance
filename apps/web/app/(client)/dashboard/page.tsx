@@ -4,11 +4,25 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 
+interface MetricItem {
+  label: string;
+  value: string;
+  change: string;
+  positive: boolean;
+}
+
+interface DashboardTask {
+  title: string;
+  due: string;
+  priority: string;
+  completed: boolean;
+}
+
 interface DashboardData {
   recoveryScore: number;
   stage: string;
-  metrics: Array<{ label: string; value: string; change: string; positive: boolean }>;
-  tasks: Array<{ title: string; due: string; priority: string; completed: boolean }>;
+  metrics: MetricItem[];
+  tasks: DashboardTask[];
 }
 
 export default function DashboardPage() {
@@ -19,26 +33,100 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate loading dashboard data from APIs
-    const timer = setTimeout(() => {
+    Promise.all([
+      fetch("/api/debts").then((r) => r.json()).catch(() => null),
+      fetch("/api/budget").then((r) => r.json()).catch(() => null),
+      fetch("/api/plans").then((r) => r.json()).catch(() => null),
+    ]).then(([debtsData, budgetData, plansData]) => {
+      const totalDebt = debtsData?.summary?.totalBalance ?? 17300;
+      const totalArrears = debtsData?.summary?.totalArrears ?? 0;
+      const disposable = budgetData?.summary?.disposableIncome ?? 650;
+      const housingAtRisk = budgetData?.summary?.housingAtRisk ?? false;
+
+      // Use balanced plan monthly payment if available
+      const balancedPlan = (plansData?.plans ?? []).find(
+        (p: { name: string }) => p.name === "balanced"
+      );
+      const monthlyPayment = balancedPlan?.monthlyPayment ?? 450;
+
+      // Derive a simple recovery score from debt reduction and payment capacity
+      const paymentRatio = disposable > 0 ? Math.min(monthlyPayment / disposable, 1) : 0;
+      const recoveryScore = Math.max(10, Math.round(paymentRatio * 60 + (totalArrears === 0 ? 20 : 0) + (!housingAtRisk ? 20 : 0)));
+
+      // Determine stage from score
+      let stage = "Survive";
+      if (recoveryScore >= 70) stage = "Rebuild";
+      else if (recoveryScore >= 50) stage = "Recover";
+      else if (recoveryScore >= 30) stage = "Stabilise";
+
+      const crisisLevel = totalArrears > 1000 ? "HIGH" : totalArrears > 0 ? "MEDIUM" : "LOW";
+
+      // Derive actionable tasks from live API data
+      const generatedTasks: DashboardTask[] = [];
+      const debtsList: Array<{ creditor: string; arrears: number }> = debtsData?.debts ?? [];
+      const debtWithArrears = debtsList.find((d) => d.arrears > 0);
+      if (debtWithArrears) {
+        generatedTasks.push({
+          title: `Submit hardship application to ${debtWithArrears.creditor}`,
+          due: "2 days",
+          priority: "high",
+          completed: false,
+        });
+      }
+      if (housingAtRisk) {
+        generatedTasks.push({
+          title: "Contact landlord or mortgage lender about housing stress",
+          due: "3 days",
+          priority: "high",
+          completed: false,
+        });
+      }
+      generatedTasks.push({
+        title: "Update budget with latest income and expenses",
+        due: "5 days",
+        priority: "medium",
+        completed: false,
+      });
+      generatedTasks.push({
+        title: "Review recovery plan with case manager",
+        due: "1 week",
+        priority: "medium",
+        completed: false,
+      });
+
       setData({
-        recoveryScore: 42,
-        stage: "Stabilise",
+        recoveryScore,
+        stage,
         metrics: [
-          { label: "Total Debt", value: "$17,300", change: "-$200", positive: true },
-          { label: "Monthly Payment", value: "$450", change: "On track", positive: true },
-          { label: "Next Milestone", value: "3 months", change: "Emergency fund", positive: true },
-          { label: "Crisis Level", value: "MEDIUM", change: "Improving", positive: true },
+          {
+            label: "Total Debt",
+            value: `$${totalDebt.toLocaleString()}`,
+            change: totalArrears > 0 ? `$${totalArrears} in arrears` : "No arrears",
+            positive: totalArrears === 0,
+          },
+          {
+            label: "Monthly Payment",
+            value: `$${monthlyPayment}`,
+            change: "On track",
+            positive: true,
+          },
+          {
+            label: "Disposable Income",
+            value: `$${disposable.toLocaleString()}`,
+            change: housingAtRisk ? "Housing stress" : "Healthy",
+            positive: !housingAtRisk,
+          },
+          {
+            label: "Crisis Level",
+            value: crisisLevel,
+            change: totalArrears === 0 ? "No arrears" : "Improving",
+            positive: totalArrears === 0,
+          },
         ],
-        tasks: [
-          { title: "Submit hardship application to ANZ", due: "2 days", priority: "high", completed: false },
-          { title: "Update budget with new income", due: "5 days", priority: "medium", completed: false },
-          { title: "Review plan with case manager", due: "1 week", priority: "medium", completed: false },
-        ],
+        tasks: generatedTasks,
       });
       setLoading(false);
-    }, 600);
-    return () => clearTimeout(timer);
+    });
   }, []);
 
   if (loading || !data) {

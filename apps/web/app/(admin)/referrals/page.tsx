@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface Referral {
   id: string;
@@ -11,12 +11,6 @@ interface Referral {
   consentGiven: boolean;
   sentAt: string | null;
 }
-
-const initialReferrals: Referral[] = [
-  { id: "r1", client: "Sarah Wilson", service: "FAMILY_VIOLENCE", provider: "1800RESPECT", status: "SENT", consentGiven: true, sentAt: "1 day ago" },
-  { id: "r2", client: "Alex Demo", service: "DEBT_MANAGEMENT", provider: "National Debt Helpline", status: "PENDING", consentGiven: false, sentAt: null },
-  { id: "r3", client: "James Chen", service: "GAMBLING_SUPPORT", provider: "Gamblers Help", status: "ACCEPTED", consentGiven: true, sentAt: "3 days ago" },
-];
 
 const statusColors: Record<string, string> = {
   PENDING: "bg-gray-100 text-gray-700",
@@ -39,10 +33,17 @@ const serviceDirectory = [
 ];
 
 export default function ReferralsPage() {
-  const [referrals, setReferrals] = useState<Referral[]>(initialReferrals);
+  const [referrals, setReferrals] = useState<Referral[]>([]);
   const [showDirectory, setShowDirectory] = useState(false);
   const [showNewReferral, setShowNewReferral] = useState(false);
   const [newReferral, setNewReferral] = useState({ client: "", service: "", provider: "" });
+
+  useEffect(() => {
+    fetch("/api/referrals")
+      .then((res) => res.json())
+      .then((data) => setReferrals(data.referrals ?? []))
+      .catch(() => {});
+  }, []);
 
   function handleGrantConsent(refId: string) {
     setReferrals(referrals.map((r) =>
@@ -62,18 +63,31 @@ export default function ReferralsPage() {
     ));
   }
 
-  function handleAddReferral() {
+  async function handleAddReferral() {
     if (!newReferral.client || !newReferral.provider) return;
-    const ref: Referral = {
-      id: `r${Date.now()}`,
-      client: newReferral.client,
-      service: newReferral.service,
-      provider: newReferral.provider,
-      status: "PENDING",
-      consentGiven: false,
-      sentAt: null,
-    };
-    setReferrals([...referrals, ref]);
+    try {
+      const res = await fetch("/api/referrals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newReferral),
+      });
+      const data = await res.json();
+      if (data.referral) {
+        setReferrals([...referrals, data.referral]);
+      }
+    } catch {
+      // fallback: add locally if fetch fails
+      const ref: Referral = {
+        id: `r${Date.now()}`,
+        client: newReferral.client,
+        service: newReferral.service,
+        provider: newReferral.provider,
+        status: "PENDING",
+        consentGiven: false,
+        sentAt: null,
+      };
+      setReferrals([...referrals, ref]);
+    }
     setNewReferral({ client: "", service: "", provider: "" });
     setShowNewReferral(false);
   }

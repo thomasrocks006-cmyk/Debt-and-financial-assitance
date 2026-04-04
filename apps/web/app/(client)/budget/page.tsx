@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface BudgetItem {
   id: string;
@@ -12,30 +12,86 @@ interface BudgetItem {
 }
 
 export default function BudgetPage() {
-  const [incomeItems, setIncomeItems] = useState<BudgetItem[]>([
-    { id: "inc1", label: "Employment", amount: 3200, frequency: "monthly", stable: true },
-  ]);
-  const [expenseItems, setExpenseItems] = useState<BudgetItem[]>([
-    { id: "exp1", label: "Rent", amount: 1600, frequency: "monthly", essential: true },
-    { id: "exp2", label: "Food & groceries", amount: 600, frequency: "monthly", essential: true },
-    { id: "exp3", label: "Utilities", amount: 200, frequency: "monthly", essential: true },
-    { id: "exp4", label: "Transport", amount: 150, frequency: "monthly", essential: true },
-    { id: "exp5", label: "Phone & internet", amount: 80, frequency: "monthly", essential: false },
-    { id: "exp6", label: "Insurance", amount: 120, frequency: "monthly", essential: true },
-  ]);
+  const [incomeItems, setIncomeItems] = useState<BudgetItem[]>([]);
+  const [expenseItems, setExpenseItems] = useState<BudgetItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showIncomeForm, setShowIncomeForm] = useState(false);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [newItem, setNewItem] = useState({ label: "", amount: "", frequency: "monthly", essential: true });
   const [saved, setSaved] = useState(false);
 
+  useEffect(() => {
+    fetch("/api/budget")
+      .then((r) => r.json())
+      .then((data) => {
+        setIncomeItems((data.income ?? []).map((i: {
+          id: string; source: string; amount: number; frequency: string; stable: boolean;
+        }) => ({
+          id: i.id,
+          label: i.source,
+          amount: i.amount,
+          frequency: i.frequency,
+          stable: i.stable,
+        })));
+        setExpenseItems((data.expenses ?? []).map((e: {
+          id: string; category: string; amount: number; frequency: string; essential: boolean;
+        }) => ({
+          id: e.id,
+          label: e.category,
+          amount: e.amount,
+          frequency: e.frequency,
+          essential: e.essential,
+        })));
+      })
+      .catch(() => setError("Unable to load budget. Please try again."))
+      .finally(() => setLoading(false));
+  }, []);
+
   const totalIncome = incomeItems.reduce((s, i) => s + i.amount, 0);
   const totalExpenses = expenseItems.reduce((s, e) => s + e.amount, 0);
   const essentialExpenses = expenseItems.filter((e) => e.essential).reduce((s, e) => s + e.amount, 0);
   const disposable = totalIncome - totalExpenses;
-  const housingRatio = Math.round((1600 / totalIncome) * 100);
+  const rentItem = expenseItems.find((e) => e.label.toLowerCase().includes("rent") || e.label.toLowerCase().includes("housing"));
+  const housingRatio = rentItem && totalIncome > 0 ? Math.round((rentItem.amount / totalIncome) * 100) : 0;
 
-  function addItem(type: "income" | "expense") {
+  async function addItem(type: "income" | "expense") {
     if (!newItem.label || !newItem.amount) return;
+    try {
+      const res = await fetch("/api/budget", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type,
+          ...(type === "income" ? { source: newItem.label, stable: true } : { category: newItem.label, essential: newItem.essential }),
+          amount: parseFloat(newItem.amount),
+          frequency: newItem.frequency,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const raw = data.item;
+        const item: BudgetItem = {
+          id: raw.id,
+          label: type === "income" ? raw.source : raw.category,
+          amount: raw.amount,
+          frequency: raw.frequency,
+          ...(type === "income" ? { stable: raw.stable } : { essential: raw.essential }),
+        };
+        if (type === "income") {
+          setIncomeItems([...incomeItems, item]);
+          setShowIncomeForm(false);
+        } else {
+          setExpenseItems([...expenseItems, item]);
+          setShowExpenseForm(false);
+        }
+        setNewItem({ label: "", amount: "", frequency: "monthly", essential: true });
+        return;
+      }
+    } catch {
+      // fall through to local fallback
+    }
+    // Local fallback
     const item: BudgetItem = {
       id: `${type === "income" ? "inc" : "exp"}${Date.now()}`,
       label: newItem.label,
@@ -64,6 +120,29 @@ export default function BudgetPage() {
   function handleSave() {
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-gray-200 rounded w-1/3" />
+          <div className="h-32 bg-gray-200 rounded-xl" />
+          <div className="grid grid-cols-2 gap-6">
+            <div className="h-48 bg-gray-200 rounded-xl" />
+            <div className="h-48 bg-gray-200 rounded-xl" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">{error}</div>
+      </div>
+    );
   }
 
   return (

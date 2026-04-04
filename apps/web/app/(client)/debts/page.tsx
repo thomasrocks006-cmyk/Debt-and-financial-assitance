@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface Debt {
   id: string;
@@ -14,11 +14,6 @@ interface Debt {
   arrears: number;
 }
 
-const initialDebts: Debt[] = [
-  { id: "1", creditor: "ANZ Bank", type: "Credit Card", balance: 7500, minimum: 150, interest: 19.99, status: "ACTIVE", arrears: 300 },
-  { id: "2", creditor: "Latitude Finance", type: "Personal Loan", balance: 9800, minimum: 280, interest: 14.99, status: "ACTIVE", arrears: 0 },
-];
-
 const statusColors: Record<string, string> = {
   ACTIVE: "bg-gray-100 text-gray-700",
   IN_HARDSHIP: "bg-blue-100 text-blue-700",
@@ -28,33 +23,114 @@ const statusColors: Record<string, string> = {
 };
 
 export default function DebtsPage() {
-  const [debts, setDebts] = useState<Debt[]>(initialDebts);
+  const [debts, setDebts] = useState<Debt[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newDebt, setNewDebt] = useState({ creditor: "", type: "Credit Card", balance: "", minimum: "", interest: "" });
+
+  useEffect(() => {
+    fetch("/api/debts")
+      .then((r) => r.json())
+      .then((data) => {
+        const mapped: Debt[] = (data.debts ?? []).map((d: {
+          id: string;
+          creditor: string;
+          type: string;
+          currentBalance: number;
+          minimumPayment: number;
+          interestRate: number;
+          status: string;
+          arrears: number;
+        }) => ({
+          id: d.id,
+          creditor: d.creditor,
+          type: d.type.replace(/_/g, " "),
+          balance: d.currentBalance,
+          minimum: d.minimumPayment,
+          interest: d.interestRate,
+          status: d.status,
+          arrears: d.arrears,
+        }));
+        setDebts(mapped);
+      })
+      .catch(() => setError("Unable to load debts. Please try again."))
+      .finally(() => setLoading(false));
+  }, []);
 
   const total = debts.reduce((s, d) => s + d.balance, 0);
   const totalMinimum = debts.reduce((s, d) => s + d.minimum, 0);
   const totalArrears = debts.reduce((s, d) => s + d.arrears, 0);
 
-  function handleAddDebt() {
+  async function handleAddDebt() {
     if (!newDebt.creditor || !newDebt.balance) return;
-    const debt: Debt = {
-      id: String(Date.now()),
-      creditor: newDebt.creditor,
-      type: newDebt.type,
-      balance: parseFloat(newDebt.balance),
-      minimum: parseFloat(newDebt.minimum) || 0,
-      interest: parseFloat(newDebt.interest) || 0,
-      status: "ACTIVE",
-      arrears: 0,
-    };
-    setDebts([...debts, debt]);
+    try {
+      const res = await fetch("/api/debts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          creditor: newDebt.creditor,
+          type: newDebt.type.toUpperCase().replace(/ /g, "_"),
+          currentBalance: parseFloat(newDebt.balance),
+          minimumPayment: parseFloat(newDebt.minimum) || 0,
+          interestRate: parseFloat(newDebt.interest) || 0,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const d = data.debt;
+        setDebts([...debts, {
+          id: d.id,
+          creditor: d.creditor,
+          type: d.type.replace(/_/g, " "),
+          balance: d.currentBalance,
+          minimum: d.minimumPayment,
+          interest: d.interestRate,
+          status: d.status,
+          arrears: d.arrears,
+        }]);
+      }
+    } catch {
+      const debt: Debt = {
+        id: String(Date.now()),
+        creditor: newDebt.creditor,
+        type: newDebt.type,
+        balance: parseFloat(newDebt.balance),
+        minimum: parseFloat(newDebt.minimum) || 0,
+        interest: parseFloat(newDebt.interest) || 0,
+        status: "ACTIVE",
+        arrears: 0,
+      };
+      setDebts([...debts, debt]);
+    }
     setNewDebt({ creditor: "", type: "Credit Card", balance: "", minimum: "", interest: "" });
     setShowAddForm(false);
   }
 
   function handleRequestHardship(debtId: string) {
     setDebts(debts.map((d) => (d.id === debtId ? { ...d, status: "IN_HARDSHIP" } : d)));
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-gray-200 rounded w-1/3" />
+          <div className="grid grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => <div key={i} className="h-20 bg-gray-200 rounded-xl" />)}
+          </div>
+          {[1, 2].map((i) => <div key={i} className="h-32 bg-gray-200 rounded-xl" />)}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">{error}</div>
+      </div>
+    );
   }
 
   return (
